@@ -133,7 +133,7 @@ export class StorageService {
       }
     }
 
-    throw new Error("Impossible de créer l'archive : trop de fichiers portant le même nom")
+    throw new Error("Cannot create the archive: too many files sharing the same name")
   }
 
   async listArchives(): Promise<TombolaArchiveSummary[]> {

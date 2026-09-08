@@ -9,16 +9,17 @@ import {
   DonationSchema,
   ManualDonationSchema,
   remainingSecondsFrom,
-  StreamlabsItemSchema,
+  StreamlabsCharityItemSchema,
   slugify,
   type TombolaBackupData,
   TombolaBackupDataSchema,
+  TombolaConfigSchema,
   ticketsFor,
 } from "@tombola/contracts"
 import type { FastifyInstance } from "fastify"
 import { buildApp } from "./app.js"
 import { config } from "./config.js"
-import { ingestStreamlabsItem } from "./modules/donation-ingest.js"
+import { ingestCharityDonationItem } from "./modules/donation-ingest.js"
 import { StorageService } from "./modules/storage.js"
 import { TombolaEngine, tombolaEngine } from "./modules/tombola-engine.js"
 
@@ -126,10 +127,27 @@ test("strict schemas reject unknown fields", () => {
   assert.equal(DonationSchema.safeParse({ ...base, amount: 5_000_000 }).success, false)
   assert.equal(DonationSchema.safeParse({ ...base, donorName: "x".repeat(65) }).success, false)
 
-  // Streamlabs items stay permissive on purpose (extra fields tolerated)
-  const item = StreamlabsItemSchema.safeParse({ name: "Zoe", amount: "12.50", isTest: true })
+  // Streamlabs Charity items stay permissive on purpose (extra fields tolerated)
+  const item = StreamlabsCharityItemSchema.safeParse({
+    from: "Zoe",
+    amount: "12.50",
+    isTest: true,
+    campaignId: "713449001231458231",
+    priority: 10,
+  })
   assert.equal(item.success, true)
   assert.equal(item.data?.message, "")
+  assert.equal(item.data?.currency, "EUR")
+
+  // The tombola currency is a normalised 3-letter code defaulting to EUR
+  assert.equal(TombolaConfigSchema.safeParse({}).data?.currency, "EUR")
+  assert.equal(TombolaConfigSchema.safeParse({ currency: " usd " }).data?.currency, "USD")
+  assert.equal(TombolaConfigSchema.safeParse({ currency: "EURO" }).success, false)
+
+  // The overlay theme is a closed enum defaulting to rose
+  assert.equal(TombolaConfigSchema.safeParse({}).data?.overlayTheme, "rose")
+  assert.equal(TombolaConfigSchema.safeParse({ overlayTheme: "gold" }).success, true)
+  assert.equal(TombolaConfigSchema.safeParse({ overlayTheme: "turquoise" }).success, false)
 })
 
 test("ticketsFor computes in integer cents", () => {
@@ -333,6 +351,27 @@ test("negative add_time is clamped to zero and keeps the backup valid", async (t
   assert.equal(backup.timer.remainingSeconds, 0)
 })
 
+test("a backup written before themes existed reloads on the rose default", async (t) => {
+  const { dir, engine } = await makeEngine(t)
+
+  assert.equal(engine.getState().config.overlayTheme, "rose")
+
+  const legacy = backupData()
+  const legacyConfig: Record<string, unknown> = { ...legacy.config }
+  delete legacyConfig.overlayTheme
+  await fs.writeFile(
+    path.join(dir, "backup.json"),
+    JSON.stringify({ ...legacy, config: legacyConfig }),
+  )
+
+  const rebooted = new TombolaEngine(new StorageService(dir))
+  t.after(() => rebooted.dispose())
+  await rebooted.init()
+
+  assert.equal(rebooted.getState().config.overlayTheme, "rose")
+  assert.equal((await rebooted.updateConfig({ overlayTheme: "gold" })).overlayTheme, "gold")
+})
+
 test("changing timerDurationSeconds while idle updates remainingSeconds", async (t) => {
   const { dir, engine } = await makeEngine(t)
 
@@ -373,38 +412,136 @@ test("resetAll archives the previous tombola", async (t) => {
 })
 
 // ---------------------------------------------------------------------------
-// Streamlabs ingestion
+// Streamlabs Charity ingestion
 // ---------------------------------------------------------------------------
 
-test("ingestStreamlabsItem only credits while the tombola runs", async (t) => {
+/** Real `streamlabscharitydonation` item as captured on the Streamlabs Socket API. */
+function charityItem(overrides: Record<string, unknown> = {}) {
+  return {
+    charityDonationId: "455768204817176347",
+    formattedAmount: "\u20ac25.00",
+    formatted_amount: "\u20ac25.00",
+    currency: "EUR",
+    amount: "25.00",
+    message: "Avec amour d\u2019Anvers en Belgique.",
+    to: { name: "Durss" },
+    memberId: "717456377752197490",
+    from: "StormRider",
+    id: 24182,
+    userId: "717456361696403399",
+    campaignId: "713449001231458231",
+    createdAt: "2024-09-06 20:29:57",
+    custom: [],
+    _id: "34af89885d0532f74996f3042ca18fb2",
+    priority: 10,
+    ...overrides,
+  }
+}
+
+test("ingestCharityDonationItem only credits while the tombola runs", async (t) => {
   const { engine } = await makeEngine(t)
 
-  const item = { id: 77, name: "Shokker", amount: "12.50", currency: "EUR", isTest: true }
+  const item = charityItem()
 
-  assert.equal(await ingestStreamlabsItem(engine, item), null)
+  assert.equal(await ingestCharityDonationItem(engine, item), null)
   assert.equal(engine.getState().stats.donationCount, 0)
 
   await engine.startTimer()
-  const donation = await ingestStreamlabsItem(engine, item)
-  assert.equal(donation?.donorName, "Shokker")
-  assert.equal(donation?.amount, 12.5)
-  assert.equal(donation?.streamlabsDonationId, "77")
+  const donation = await ingestCharityDonationItem(engine, item)
+  assert.equal(donation?.donorName, "StormRider")
+  assert.equal(donation?.amount, 25)
+  assert.equal(donation?.currency, "EUR")
+  assert.equal(donation?.message, "Avec amour d\u2019Anvers en Belgique.")
+  // Deduplication keys on charityDonationId, never on the per-alert `id` counter
+  assert.equal(donation?.streamlabsDonationId, "455768204817176347")
 
   // Replay of the very same socket event is ignored
-  await ingestStreamlabsItem(engine, item)
+  await ingestCharityDonationItem(engine, item)
   assert.equal(engine.getState().stats.donationCount, 1)
+
+  // Two distinct donations that happen to share the same alert `id` both count
+  await ingestCharityDonationItem(engine, charityItem({ charityDonationId: "999", amount: "5.00" }))
+  assert.equal(engine.getState().stats.donationCount, 2)
 
   // Invalid or unusable items are ignored without throwing
-  assert.equal(await ingestStreamlabsItem(engine, { name: "X" }), null)
-  assert.equal(await ingestStreamlabsItem(engine, null), null)
-  assert.equal(await ingestStreamlabsItem(engine, { name: "X", amount: "abc" }), null)
-  assert.equal(await ingestStreamlabsItem(engine, { name: "X", amount: -5 }), null)
-  assert.equal(await ingestStreamlabsItem(engine, { name: "X", amount: 9_999_999 }), null)
+  assert.equal(await ingestCharityDonationItem(engine, { from: "X" }), null)
+  assert.equal(await ingestCharityDonationItem(engine, null), null)
+  assert.equal(await ingestCharityDonationItem(engine, { from: "X", amount: "abc" }), null)
+  assert.equal(await ingestCharityDonationItem(engine, { from: "X", amount: -5 }), null)
+  assert.equal(await ingestCharityDonationItem(engine, { from: "X", amount: 9_999_999 }), null)
+  assert.equal(engine.getState().stats.donationCount, 2)
+
+  // Anonymous donations are credited under "Anonyme"
+  const anonymous = await ingestCharityDonationItem(engine, {
+    amount: 3,
+    charityDonationId: "charity-anon",
+  })
+  assert.equal(anonymous?.donorName, "Anonyme")
+})
+
+test("an over-long charity name or message is truncated, never dropped", async (t) => {
+  const { engine } = await makeEngine(t)
+  await engine.startTimer()
+
+  const donation = await ingestCharityDonationItem(
+    engine,
+    charityItem({ from: "N".repeat(200), message: "M".repeat(900) }),
+  )
+
+  assert.equal(donation?.donorName.length, 64)
+  assert.equal(donation?.message.length, 500)
+  assert.equal(engine.getState().stats.donationCount, 1)
+})
+
+test("charity items fall back to _id and tolerate null free-text fields", async (t) => {
+  const { engine } = await makeEngine(t)
+  await engine.startTimer()
+
+  const donation = await ingestCharityDonationItem(engine, {
+    _id: "34af89885d0532f74996f3042ca18fb2",
+    from: null,
+    message: null,
+    currency: null,
+    amount: "10.50",
+  })
+
+  assert.equal(donation?.streamlabsDonationId, "34af89885d0532f74996f3042ca18fb2")
+  assert.equal(donation?.donorName, "Anonyme")
+  assert.equal(donation?.message, "")
+  assert.equal(donation?.currency, "EUR")
+})
+
+test("a charity donation in another currency is ignored entirely", async (t) => {
+  const { engine } = await makeEngine(t)
+  await engine.startTimer()
+
+  // 5000 HUF is worth ~12 €: crediting it at face value would hand out 5000 tickets.
+  const refused = await ingestCharityDonationItem(
+    engine,
+    charityItem({ charityDonationId: "huf-1", amount: "5000", currency: "HUF", from: "Cheater" }),
+  )
+
+  assert.equal(refused, null)
+  const state = engine.getState()
+  assert.equal(state.stats.donationCount, 0)
+  assert.equal(state.stats.totalTickets, 0)
+  assert.equal(state.stats.totalAmount, 0)
+
+  // A lowercase code is the same currency, not a foreign one
+  const credited = await ingestCharityDonationItem(
+    engine,
+    charityItem({ charityDonationId: "eur-1", currency: "eur" }),
+  )
+  assert.equal(credited?.currency, "EUR")
   assert.equal(engine.getState().stats.donationCount, 1)
 
-  // Anonymous tips are credited under "Anonyme"
-  const anonymous = await ingestStreamlabsItem(engine, { amount: 3, id: "sl-anon" })
-  assert.equal(anonymous?.donorName, "Anonyme")
+  // Switching the tombola currency flips which donations are accepted
+  await engine.updateConfig({ currency: "USD" })
+  assert.equal(
+    await ingestCharityDonationItem(engine, charityItem({ charityDonationId: "eur-2" })),
+    null,
+  )
+  assert.equal(engine.getState().stats.donationCount, 1)
 })
 
 // ---------------------------------------------------------------------------
@@ -438,7 +575,7 @@ test("every admin route requires the admin key", async (t) => {
   }
 })
 
-test("health exposes the Streamlabs listener status", async (t) => {
+test("health exposes the Streamlabs Charity listener status", async (t) => {
   await fs.rm(config.DATA_DIR, { recursive: true, force: true })
   const server = await buildApp({ logger: false, isStreamlabsConnected: () => true })
   t.after(async () => {
@@ -481,6 +618,28 @@ test("manual donation is refused while the tombola is not running", async (t) =>
   })
   assert.equal(accepted.statusCode, 200)
   assert.equal(tombolaEngine.getState().stats.donationCount, 1)
+})
+
+test("a manual donation must use the tombola currency", async (t) => {
+  const server = await makeServer(t)
+  await startTombola(server)
+
+  const wrongCurrency = await server.inject({
+    method: "POST",
+    url: "/api/admin/manual-donation",
+    headers: ADMIN_HEADERS,
+    payload: { donorName: "Bob", amount: 10, currency: "USD" },
+  })
+  assert.equal(wrongCurrency.statusCode, 400)
+
+  const implicitCurrency = await server.inject({
+    method: "POST",
+    url: "/api/admin/manual-donation",
+    headers: ADMIN_HEADERS,
+    payload: { donorName: "Bob", amount: 10 },
+  })
+  assert.equal(implicitCurrency.statusCode, 200)
+  assert.equal(implicitCurrency.json().donation.currency, "EUR")
 })
 
 test("draw refuses a second winner unless forced", async (t) => {

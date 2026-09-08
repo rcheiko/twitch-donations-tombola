@@ -103,7 +103,7 @@ Once deployed with your custom domain (e.g. `api-tombola.yourdomain.com`):
 |---|---|---|
 | **OBS Overlay** | `https://api-tombola.yourdomain.com/overlay` | Browser Source URL in OBS (450x650) |
 | **Admin Panel** | `https://api-tombola.yourdomain.com/admin` | Streamer control room for timers and draws |
-| **Healthcheck** | `https://api-tombola.yourdomain.com/api/health` | Server status + `streamlabsConnected` (live socket state) |
+| **Healthcheck** | `https://api-tombola.yourdomain.com/api/health` | Server status + `streamlabsConnected` (live Streamlabs Charity socket state) |
 | **Archives** | `https://api-tombola.yourdomain.com/api/admin/archives` | Past raffles archived on reset (requires `x-admin-key`) |
 | **WebSocket** | `wss://api-tombola.yourdomain.com/ws` | Real-time WebSocket connection |
 

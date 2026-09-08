@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Real-time Twitch charity raffle and tombola platform with Streamlabs webhooks, OBS overlay and admin control",
+  "description": "Real-time Twitch charity raffle and tombola platform driven by Streamlabs Charity donations, with OBS overlay and admin control",
   "license": "MIT",
   "author": "Romain Cheiko",
   "repository": {

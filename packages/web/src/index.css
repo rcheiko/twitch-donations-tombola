@@ -2,18 +2,29 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer utilities {
-  .gold-text-gradient {
-    background: linear-gradient(135deg, #f7e2a9 0%, #e5b138 50%, #b88320 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
+/*
+ * Overlay accent palettes. Every accent colour of the overlay resolves through these
+ * variables, so switching `config.overlayTheme` repaints the card live. Adding a theme =
+ * one block here + one entry in OVERLAY_THEMES (@tombola/contracts).
+ * Values are space-separated RGB channels so Tailwind opacity modifiers keep working.
+ */
+:root,
+[data-overlay-theme="rose"] {
+  --accent-bright: 247 158 195; /* #f79ec3 — gradient highlight */
+  --accent-soft: 247 158 195; /* #f79ec3 — accent text on the dark card */
+  --accent-base: 216 72 125; /* #d8487d — glows, borders, icons */
+  --accent-deep: 216 72 125; /* #d8487d — gradient start */
+  --accent-edge: 216 72 125; /* #d8487d — gradient end */
+  --accent-muted: 138 47 82; /* #8a2f52 — divider */
+  --accent-ink: 43 10 22; /* #2b0a16 — text laid on top of the accent */
+}
 
-  .gold-button-gradient {
-    background: linear-gradient(180deg, #f3d489 0%, #e2b34a 50%, #ba8929 100%);
-  }
-
-  .gold-border-gradient {
-    border-image: linear-gradient(to right, #614611, #d4a748, #614611) 1;
-  }
+[data-overlay-theme="gold"] {
+  --accent-bright: 247 224 158; /* #f7e09e */
+  --accent-soft: 238 218 162; /* #eedaa2 */
+  --accent-base: 229 177 56; /* #e5b138 */
+  --accent-deep: 216 171 72; /* #d8ab48 */
+  --accent-edge: 207 157 58; /* #cf9d3a */
+  --accent-muted: 135 106 48; /* #876a30 */
+  --accent-ink: 22 19 11; /* #16130b */
 }

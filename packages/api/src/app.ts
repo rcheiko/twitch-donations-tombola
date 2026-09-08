@@ -38,7 +38,7 @@ function sendZodError(reply: FastifyReply, status: number, error: z.ZodError, fa
 
 export interface BuildAppOptions {
   logger?: boolean
-  /** Reports the Streamlabs socket listener status to /api/health. */
+  /** Reports the Streamlabs Charity listener status to /api/health. */
   isStreamlabsConnected?: () => boolean
 }
 
@@ -165,14 +165,22 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
       return sendZodError(reply, 400, result.error, "Don invalide")
     }
 
-    // Same rule as the Streamlabs socket channel: tickets are only credited while running
-    if (tombolaEngine.getState().timer.status !== "running") {
+    // Same rule as the Charity socket channel: tickets are only credited while running
+    const state = tombolaEngine.getState()
+    if (state.timer.status !== "running") {
       return reply.status(409).send({
         error: "Lancez la tombola avant d'envoyer un don (compte à rebours en cours requis)",
       })
     }
 
-    const donation = await tombolaEngine.addDonation(result.data)
+    const { currency } = state.config
+    if (result.data.currency && result.data.currency !== currency) {
+      return reply.status(400).send({
+        error: `La tombola est en ${currency} : convertissez le montant avant de l'ajouter.`,
+      })
+    }
+
+    const donation = await tombolaEngine.addDonation({ ...result.data, currency })
     return { success: true, donation }
   })
 

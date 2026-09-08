@@ -128,7 +128,7 @@ export class TombolaEngine {
       streamlabsDonationId: input.streamlabsDonationId,
       donorName: input.donorName.trim() || "Anonyme",
       amount: input.amount,
-      currency: input.currency || "EUR",
+      currency: input.currency || this.config.currency,
       ticketsCount: tickets,
       message: input.message ? input.message.trim() : "",
       createdAt: new Date().toISOString(),

@@ -47,7 +47,7 @@ const EnvSchema = z
         code: z.ZodIssueCode.custom,
         path: ["STREAMLABS_SOCKET_TOKEN"],
         message:
-          "❌ CONFIGURATION : En production, STREAMLABS_SOCKET_TOKEN doit être configuré (Streamlabs: Profil en haut à droite -> Account Settings -> API Settings -> API Tokens -> Your Socket API Token).",
+          "❌ CONFIG: in production, STREAMLABS_SOCKET_TOKEN must be set (Streamlabs: profile menu top-right -> Account Settings -> API Settings -> API Tokens -> Your Socket API Token). The same token carries Streamlabs Charity donations.",
       })
     }
 
@@ -60,7 +60,7 @@ const EnvSchema = z
         code: z.ZodIssueCode.custom,
         path: ["ADMIN_SECRET_KEY"],
         message:
-          "❌ SÉCURITÉ CRITIQUE : En production, ADMIN_SECRET_KEY doit être défini dans le .env et comporter au moins 16 caractères aléatoires (pas de valeur par défaut).",
+          "❌ SECURITY: in production, ADMIN_SECRET_KEY must be set in .env with at least 16 random characters (no default placeholder).",
       })
     }
   })
@@ -78,7 +78,7 @@ const EnvSchema = z
 const parsed = EnvSchema.safeParse(process.env)
 
 if (!parsed.success) {
-  console.error("❌ Erreur de configuration d'environnement :")
+  console.error("❌ Invalid environment configuration:")
   for (const issue of parsed.error.issues) {
     console.error(`   - ${issue.message}`)
   }

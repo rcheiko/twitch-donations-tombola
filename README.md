@@ -1,6 +1,6 @@
-# 🎟️ Twitch & Streamlabs Live Tombola (Charity Raffle)
+# 🎟️ Twitch & Streamlabs Charity Live Tombola (Charity Raffle)
 
-A complete real-time monorepo application to organize **charity raffles during Twitch livestreams**, natively connected to the **Streamlabs Real-Time Socket API**.
+A complete real-time monorepo application to organize **charity raffles during Twitch livestreams**, natively connected to the **Streamlabs Real-Time Socket API** and driven by **Streamlabs Charity** donations.
 
 It provides an **OBS Browser Overlay** and a **Streamer Admin Dashboard** to manage the live show.
 
@@ -8,7 +8,7 @@ It provides an **OBS Browser Overlay** and a **Streamer Admin Dashboard** to man
 
 ## ✨ Key Features
 
-- ⚡ **Ultra-Fast Real-Time (WebSockets):** As soon as a donation occurs on Streamlabs, the OBS overlay and admin control room update instantly.
+- ⚡ **Ultra-Fast Real-Time (WebSockets):** As soon as a donation occurs on Streamlabs Charity, the OBS overlay and admin control room update instantly.
 - 🎨 **Ready-to-Use OBS Browser Overlay:** Polished gala/ZEvent design (dark card, gold Cinzel typography, central countdown capsule, donation counter, total funds raised, top donor highlight, customizable bottom banner, and victory confetti).
 - 🛡️ **Absolute Crash-Proof Resilience:** Every donation is written atomically to `backup.json` (temporary `.tmp` file followed by a POSIX atomic rename). Complete state is seamlessly restored on restart.
 - 🎲 **Fair & Cryptographically Secure Weighted Draw:** Secure random selection (`crypto.randomInt`). Each ticket has equal probability; donors acquire tickets proportionally to their total contributions (e.g. 1€ = 1 ticket or custom positive decimal price).
@@ -51,7 +51,8 @@ NODE_ENV=production
 PORT=3000
 DATA_DIR=/app/data
 
-# Streamlabs Socket API Token (Copy from streamlabs.com -> Profile (top-right) -> Account Settings -> API Settings -> API Tokens)
+# Streamlabs Socket API Token — same token carries Streamlabs Charity donations
+# (Copy from streamlabs.com -> Profile (top-right) -> Account Settings -> API Settings -> API Tokens)
 STREAMLABS_SOCKET_TOKEN=your_socket_token_from_streamlabs
 
 # Admin password for /admin dashboard
@@ -72,7 +73,7 @@ npm run dev
 
 - Open `http://localhost:5173/admin` in your browser.
 - Open `http://localhost:5173/overlay` in another window or tab.
-- In the Admin panel, enter your `ADMIN_SECRET_KEY` and use the **"Simulate Streamlabs Donation"** panel to send a test donation (e.g. 50€ from "ZeratoR").
+- In the Admin panel, enter your `ADMIN_SECRET_KEY` and use the **"Simulate a donation"** panel to send a test donation (e.g. 50€ from "ZeratoR").
 - Check that the OBS overlay updates instantly with live ticket counts and animations.
 - Test starting the timer and clicking **"Draw Random Winner 🎲"**.
 
@@ -84,19 +85,20 @@ npm run dev
 - **Frontend SPA on Cloudflare Pages:** Follow the [Cloudflare Pages Deployment Guide](./docs/DEPLOYMENT-CLOUDFLARE.md).
   - Connect GitHub repo, set build command `npm run build:web`, output `packages/web/dist`, and set `VITE_API_URL`.
 
-### 5. Connect Streamlabs (Real-Time Donations)
+### 5. Connect Streamlabs Charity (Real-Time Donations)
 
-Streamlabs connects directly via its real-time **Socket API** to capture incoming donations:
+Streamlabs Charity donations travel on the **same Socket API and the same token** as classic tips — only the event type differs (`streamlabscharitydonation`). There is no separate Charity credential to obtain:
 
 1. Log in to [streamlabs.com/dashboard](https://streamlabs.com/dashboard).
 2. Click your profile avatar in the top-right corner > **Account Settings** > **API Settings** > **API Tokens** tab.
 3. Copy **"Your Socket API Token"** and paste it into your `.env` as `STREAMLABS_SOCKET_TOKEN`.
-4. When the server starts, it connects automatically to Streamlabs.
-5. When you click **"Start"** on the raffle timer in `/admin`, any donation on your tip page or clicking **"Test Donation"** in the Streamlabs Alert Box instantly credits tickets and displays on the overlay.
+4. Make sure this Streamlabs account is **linked to your Streamlabs Charity campaign** — otherwise the socket connects but no charity event is ever delivered.
+5. When the server starts, it connects automatically to Streamlabs.
+6. When you click **"Start"** on the raffle timer in `/admin`, any Streamlabs Charity donation instantly credits tickets and displays on the overlay.
 
-> ℹ️ The Streamlabs Socket API is the **only** donation channel (there is no HTTP webhook endpoint). The single other way to credit tickets is the manual/simulated donation from the Admin panel. You can verify the socket status at any time on `GET /api/health`, which returns `streamlabsConnected: boolean`.
+> ℹ️ Only **Streamlabs Charity** donations credit tickets: classic Streamlabs tips (`type: "donation"`) are deliberately ignored, and so is the Alert Box **"Test Donation"** button, which sends a classic tip. The Streamlabs Charity socket is the **only** donation channel (there is no HTTP webhook endpoint); the single other way to credit tickets is the manual/simulated donation from the Admin panel. You can verify the socket status at any time on `GET /api/health`, which returns `streamlabsConnected: boolean`.
 
-*(For testing and details, see the [Streamlabs Integration Guide](./docs/STREAMLABS.md)).*
+*(For testing and details, see the [Streamlabs Charity Integration Guide](./docs/STREAMLABS-CHARITY.md)).*
 
 ### 6. Embed Overlay in OBS Studio
 
@@ -186,7 +188,7 @@ twitch-donations-tombola/
 │   ├── ARCHITECTURE.md            # Data model & weighted draw algorithm
 │   ├── DEPLOYMENT-CAPROVER.md     # Backend VPS deployment guide (CapRover)
 │   ├── DEPLOYMENT-CLOUDFLARE.md   # Frontend SPA deployment guide (Cloudflare Pages)
-│   └── STREAMLABS.md              # Real-time Socket API guide & test methods
+│   └── STREAMLABS-CHARITY.md      # Real-time Charity Socket API guide & test methods
 ├── packages/
 │   ├── config/                    # Shared Biome & TypeScript base configs
 │   ├── contracts/                 # Strict Zod schemas & shared TypeScript types
@@ -199,6 +201,6 @@ twitch-donations-tombola/
 ## 🔒 Security & Best Practices
 
 - **Zero Hardcoded Secrets:** In production (`NODE_ENV=production`) the server refuses to start if `ADMIN_SECRET_KEY` is missing, still set to its default placeholder, or shorter than 16 characters, or if `STREAMLABS_SOCKET_TOKEN` is missing or still set to its default placeholder.
-- **Strict Zod Validation:** All incoming HTTP requests and admin payloads are validated with `.strict()` schemas to reject untrusted or unknown fields. The **only documented exception** is the schema validating inbound Streamlabs Socket API items, which is deliberately non-strict because Streamlabs adds extra fields to its events.
+- **Strict Zod Validation:** All incoming HTTP requests and admin payloads are validated with `.strict()` schemas to reject untrusted or unknown fields. The **only documented exception** is the schema validating inbound Streamlabs Charity Socket API items, which is deliberately non-strict because Streamlabs adds extra fields to its events.
 - **Constant-Time Auth:** The admin key (`x-admin-key` header) is verified using `crypto.timingSafeEqual` to prevent timing attacks.
-- **Documented Input Bounds:** amount ≤ `1 000 000`, donor name ≤ `64` characters, message ≤ `500` characters, timer `add_time` between `-86400` and `+86400` seconds, timer duration between `10` and `86400` seconds.
+- **Documented Input Bounds:** amount ≤ `1 000 000`, donor name ≤ `64` characters, message ≤ `500` characters, timer `add_time` between `-86400` and `+86400` seconds, timer duration between `10` and `86400` seconds. On the Charity socket, an over-long donor name or message is **truncated** to those bounds rather than dropping a real donation.

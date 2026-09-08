@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { DEFAULT_TOMBOLA_CONFIG } from "./constants.js"
+import { DEFAULT_TOMBOLA_CONFIG, OVERLAY_THEMES } from "./constants.js"
 
 export const DonationSchema = z
   .object({
@@ -29,6 +29,14 @@ export const TombolaConfigSchema = z
       .positive("Le prix d'un ticket doit être supérieur à 0 €")
       .max(10_000, "Le prix d'un ticket ne peut pas dépasser 10 000 €")
       .default(DEFAULT_TOMBOLA_CONFIG.ticketPrice),
+    // Ticket maths and the raised total are expressed in this currency only; a donation
+    // in any other currency is refused rather than counted at face value.
+    currency: z
+      .string()
+      .trim()
+      .toUpperCase()
+      .length(3, "La devise doit être un code ISO à 3 lettres (ex : EUR)")
+      .default(DEFAULT_TOMBOLA_CONFIG.currency),
     lotTitle: z
       .string()
       .trim()
@@ -52,6 +60,14 @@ export const TombolaConfigSchema = z
       .min(10, "La durée du compte à rebours doit être d'au moins 10 secondes")
       .max(86_400, "La durée du compte à rebours ne peut pas dépasser 24 heures")
       .default(DEFAULT_TOMBOLA_CONFIG.timerDurationSeconds),
+    // Defaulted, so a backup.json written before themes existed still loads.
+    overlayTheme: z
+      .enum(OVERLAY_THEMES, {
+        errorMap: () => ({
+          message: `Thème d'overlay invalide (attendu : ${OVERLAY_THEMES.join(" ou ")})`,
+        }),
+      })
+      .default(DEFAULT_TOMBOLA_CONFIG.overlayTheme),
   })
   .strict()
 
@@ -131,17 +147,31 @@ export const TombolaArchiveSummarySchema = z
   .strict()
 
 /**
- * Exception to the project-wide `.strict()` rule: Streamlabs sends many extra fields
- * (priority, isTest, from, emotes, ...) that we deliberately ignore instead of rejecting.
+ * Item of a `streamlabscharitydonation` socket event: the donor is `from`, the stable id
+ * is `charityDonationId` (`id` is only a per-alert counter), and `amount` is a string.
+ *
+ * Documented exception to the project-wide `.strict()` rule, because Streamlabs adds extra
+ * fields to its events. Free-text lengths stay unbounded here on purpose: ingestion
+ * truncates rather than dropping a real donation.
  */
-export const StreamlabsItemSchema = z.object({
-  id: z.union([z.string(), z.number()]).optional(),
-  name: z.string().trim().max(64).optional(),
+export const StreamlabsCharityItemSchema = z.object({
+  charityDonationId: z.union([z.string(), z.number()]).optional(),
+  /** Fallback deduplication key when `charityDonationId` is absent. */
+  _id: z.string().optional(),
+  from: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? ""),
   amount: z.union([z.string(), z.number()]),
-  formatted_amount: z.string().optional(),
-  currency: z.string().optional().default("EUR"),
-  message: z.string().trim().max(500).optional().default(""),
-  created_at: z.union([z.number(), z.string()]).optional(),
+  currency: z
+    .string()
+    .nullish()
+    .transform((value) => value || "EUR"),
+  message: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? ""),
+  isTest: z.boolean().optional(),
 })
 
 export const AdminTimerActionSchema = z
@@ -163,7 +193,7 @@ export const ManualDonationSchema = z
   .object({
     donorName: z.string().trim().min(1).max(64),
     amount: z.number().positive().max(1_000_000),
-    currency: z.string().default("EUR"),
+    currency: z.string().trim().toUpperCase().length(3).optional(),
     message: z.string().trim().max(500).optional().default(""),
   })
   .strict()

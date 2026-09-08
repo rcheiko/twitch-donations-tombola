@@ -1,6 +1,6 @@
 import { buildApp } from "./app.js"
 import { config } from "./config.js"
-import { StreamlabsListener } from "./modules/streamlabs-listener.js"
+import { StreamlabsCharityListener } from "./modules/streamlabs-charity-listener.js"
 import { tombolaEngine } from "./modules/tombola-engine.js"
 import { wsManager } from "./modules/ws.js"
 
@@ -8,10 +8,10 @@ async function main() {
   try {
     await tombolaEngine.init()
 
-    let streamlabsListener: StreamlabsListener | null = null
+    let charityListener: StreamlabsCharityListener | null = null
     const server = await buildApp({
       logger: true,
-      isStreamlabsConnected: () => streamlabsListener?.connected ?? false,
+      isStreamlabsConnected: () => charityListener?.connected ?? false,
     })
 
     await server.listen({ port: config.PORT, host: config.HOST })
@@ -19,17 +19,17 @@ async function main() {
     console.log(`📡 WebSocket ready on ws://${config.HOST}:${config.PORT}/ws`)
     console.log(`💾 Backup persistence active at ${config.DATA_DIR}/backup.json`)
 
-    streamlabsListener = new StreamlabsListener(
+    charityListener = new StreamlabsCharityListener(
       config.STREAMLABS_SOCKET_TOKEN,
       tombolaEngine,
       server.log,
     )
-    streamlabsListener.start()
+    charityListener.start()
 
     const shutdown = async (signal: string) => {
       server.log.info(`Received ${signal}, shutting down gracefully...`)
       try {
-        streamlabsListener?.stop()
+        charityListener?.stop()
         tombolaEngine.dispose()
         wsManager.close()
         await server.close()

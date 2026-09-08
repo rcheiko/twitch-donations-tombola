@@ -4,14 +4,7 @@
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**"],
-      "env": [
-        "NODE_ENV",
-        "PORT",
-        "DATA_DIR",
-        "STREAMLABS_WEBHOOK_SECRET",
-        "ADMIN_SECRET_KEY",
-        "VITE_API_URL"
-      ]
+      "env": ["NODE_ENV", "PORT", "DATA_DIR", "ADMIN_SECRET_KEY", "VITE_API_URL"]
     },
     "dev": {
       "cache": false,

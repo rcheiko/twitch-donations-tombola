@@ -1,4 +1,9 @@
-import type { TombolaArchiveSummary, TombolaTimer } from "@tombola/contracts"
+import {
+  OVERLAY_THEMES,
+  type OverlayTheme,
+  type TombolaArchiveSummary,
+  type TombolaTimer,
+} from "@tombola/contracts"
 import {
   Archive,
   Coins,
@@ -21,6 +26,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useCountdown } from "../../hooks/useCountdown.js"
 import { useTombolaSocket } from "../../hooks/useTombolaSocket.js"
 import { getApiBaseUrl } from "../../lib/api.js"
+import { formatAmount } from "../../lib/format.js"
 
 type AdminApiResult = {
   ok: boolean
@@ -39,6 +45,12 @@ async function readJson(res: Response): Promise<Record<string, unknown>> {
 
 function errorMessage(data: Record<string, unknown>): string {
   return typeof data.error === "string" && data.error ? data.error : "Action refusée"
+}
+
+/** Human labels for OVERLAY_THEMES; adding a theme to the contract fails to compile until listed here. */
+const OVERLAY_THEME_LABELS: Record<OverlayTheme, string> = {
+  rose: "Rose",
+  gold: "Or",
 }
 
 function formatArchiveDate(iso: string): string {
@@ -70,7 +82,9 @@ export const AdminPage: React.FC = () => {
   const [editLotSubtitle, setEditLotSubtitle] = useState("")
   const [editEventTitle, setEditEventTitle] = useState("")
   const [editTicketPrice, setEditTicketPrice] = useState(1)
+  const [editCurrency, setEditCurrency] = useState("EUR")
   const [editTimerDuration, setEditTimerDuration] = useState(900)
+  const [editOverlayTheme, setEditOverlayTheme] = useState<OverlayTheme>("rose")
   const [isConfigDirty, setIsConfigDirty] = useState(false)
   const isConfigDirtyRef = useRef(false)
   const appliedConfigRef = useRef<string | null>(null)
@@ -105,7 +119,9 @@ export const AdminPage: React.FC = () => {
       config.lotSubtitle,
       config.eventTitle,
       config.ticketPrice,
+      config.currency,
       config.timerDurationSeconds,
+      config.overlayTheme,
     ])
     if (signature === appliedConfigRef.current) return
     appliedConfigRef.current = signature
@@ -115,7 +131,9 @@ export const AdminPage: React.FC = () => {
     setEditLotSubtitle(config.lotSubtitle)
     setEditEventTitle(config.eventTitle)
     setEditTicketPrice(config.ticketPrice)
+    setEditCurrency(config.currency)
     setEditTimerDuration(config.timerDurationSeconds)
+    setEditOverlayTheme(config.overlayTheme)
   }, [config])
 
   const saveAdminKey = (key: string) => {
@@ -287,7 +305,7 @@ export const AdminPage: React.FC = () => {
   const handleSaveConfig = async (e: React.FormEvent) => {
     e.preventDefault()
     if (editTicketPrice <= 0) {
-      setStatusMsg("❌ Erreur: Le prix d'un ticket doit être supérieur à 0 €")
+      setStatusMsg("❌ Erreur: Le prix d'un ticket doit être supérieur à 0")
       return
     }
     const result = await callAdminApi("config", {
@@ -295,7 +313,9 @@ export const AdminPage: React.FC = () => {
       lotSubtitle: editLotSubtitle,
       eventTitle: editEventTitle,
       ticketPrice: Number(editTicketPrice),
+      currency: editCurrency,
       timerDurationSeconds: Number(editTimerDuration),
+      overlayTheme: editOverlayTheme,
     })
     if (result.ok) {
       clearConfigDirty()
@@ -326,7 +346,7 @@ export const AdminPage: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold font-serif text-[#eedaa2]">
-                Régie Tombola — Streamlabs
+                Régie Tombola — Streamlabs Charity
               </h1>
               <span
                 className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
@@ -339,8 +359,8 @@ export const AdminPage: React.FC = () => {
               </span>
             </div>
             <p className="text-xs text-stone-400 mt-1">
-              Contrôlez le lot, le timer, déclenchez les tirages et suivez les dons Streamlabs en
-              direct.
+              Contrôlez le lot, le timer, déclenchez les tirages et suivez les dons Streamlabs
+              Charity en direct.
             </p>
           </div>
 
@@ -388,7 +408,7 @@ export const AdminPage: React.FC = () => {
           <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 text-center shadow-md">
             <span className="text-xs text-stone-400 block mb-1">Total Récolté</span>
             <span className="text-2xl md:text-3xl font-black text-white">
-              {state.stats.totalAmount} €
+              {formatAmount(state.stats.totalAmount, state.config.currency)}
             </span>
           </div>
           <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 text-center shadow-md">
@@ -435,7 +455,7 @@ export const AdminPage: React.FC = () => {
                   )}
                   <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gold-500/10 border border-gold-500/30 text-gold-300 text-xs font-semibold">
                     <Sparkles className="w-3.5 h-3.5 text-gold-400" />
-                    <span>1 ticket = {editTicketPrice} €</span>
+                    <span>1 ticket = {formatAmount(editTicketPrice, editCurrency, 2)}</span>
                   </div>
                 </div>
               </div>
@@ -506,30 +526,76 @@ export const AdminPage: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Overlay accent theme */}
+                <fieldset className="min-w-0 space-y-1.5">
+                  <legend className="text-xs text-stone-300 font-medium mb-1.5">
+                    Thème de l'overlay
+                  </legend>
+                  <div className="grid grid-cols-2 gap-2">
+                    {OVERLAY_THEMES.map((theme) => (
+                      <button
+                        key={theme}
+                        type="button"
+                        aria-pressed={editOverlayTheme === theme}
+                        onClick={() => {
+                          setEditOverlayTheme(theme)
+                          markConfigDirty()
+                        }}
+                        className={`flex items-center gap-2.5 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                          editOverlayTheme === theme
+                            ? "border-gold-500/60 bg-gold-500/10 text-stone-100"
+                            : "border-neutral-700 bg-neutral-950 text-stone-400 hover:border-neutral-600"
+                        }`}
+                      >
+                        {/* The swatch reads that theme's own CSS variables, so it never drifts */}
+                        <span
+                          data-overlay-theme={theme}
+                          className="h-4 w-9 rounded-full bg-gradient-to-r from-accent-deep via-accent-bright to-accent-edge"
+                        />
+                        {OVERLAY_THEME_LABELS[theme]}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+
                 {/* Ticket Price & Duration in 2 columns with live helper tags */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                   <div className="space-y-1">
                     <div className="flex items-center justify-between">
                       <label htmlFor="ticket-price" className="text-xs text-stone-300 font-medium">
-                        Prix du ticket (€)
+                        Prix du ticket & devise
                       </label>
                       <span className="text-[11px] text-stone-500">
-                        Don de 10 € = {preview10EuroTickets} tickets
+                        Don de {formatAmount(10, editCurrency)} = {preview10EuroTickets} tickets
                       </span>
                     </div>
-                    <input
-                      id="ticket-price"
-                      type="number"
-                      value={editTicketPrice}
-                      onChange={(e) => {
-                        setEditTicketPrice(Number(e.target.value))
-                        markConfigDirty()
-                      }}
-                      className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-gold-500 transition"
-                      min="0.01"
-                      step="any"
-                      required
-                    />
+                    <div className="flex gap-2">
+                      <input
+                        id="ticket-price"
+                        type="number"
+                        value={editTicketPrice}
+                        onChange={(e) => {
+                          setEditTicketPrice(Number(e.target.value))
+                          markConfigDirty()
+                        }}
+                        className="flex-1 min-w-0 bg-neutral-950 border border-neutral-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-gold-500 transition"
+                        min="0.01"
+                        step="any"
+                        required
+                      />
+                      <input
+                        aria-label="Devise de la tombola (code ISO)"
+                        type="text"
+                        value={editCurrency}
+                        onChange={(e) => {
+                          setEditCurrency(e.target.value.toUpperCase().slice(0, 3))
+                          markConfigDirty()
+                        }}
+                        className="w-16 shrink-0 bg-neutral-950 border border-neutral-700 rounded-xl px-2 py-2 text-xs text-center text-white uppercase focus:outline-none focus:border-gold-500 transition"
+                        maxLength={3}
+                        required
+                      />
+                    </div>
                   </div>
 
                   <div className="space-y-1">
@@ -678,8 +744,9 @@ export const AdminPage: React.FC = () => {
                       {state.draw.winner.donorName}
                     </span>
                     <p className="text-xs text-stone-400">
-                      {state.draw.winner.ticketsCount} tickets ({state.draw.winner.totalDonated} €)
-                      — Ticket #{state.draw.winner.winningTicketNumber}
+                      {state.draw.winner.ticketsCount} tickets (
+                      {formatAmount(state.draw.winner.totalDonated, state.config.currency, 2)}) —
+                      Ticket #{state.draw.winner.winningTicketNumber}
                     </p>
                   </div>
                   <div className="text-2xl">🏆</div>
@@ -694,13 +761,13 @@ export const AdminPage: React.FC = () => {
 
           {/* Right col: Simulator, Recent Donations & Danger Zone */}
           <div className="space-y-6">
-            {/* Test Streamlabs Donation Simulator */}
+            {/* Manual donation: rehearsal tests AND re-entering a refused donation */}
             <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 space-y-3">
               <h3 className="text-xs font-bold uppercase tracking-wider text-stone-300 flex items-center gap-1.5">
-                <Coins className="w-4 h-4 text-amber-400" /> Simuler un Don (Test)
+                <Coins className="w-4 h-4 text-amber-400" /> Don manuel
               </h3>
               <p className="text-[11px] text-stone-400">
-                Simule l'arrivée instantanée d'un don Streamlabs pour tester l'overlay.
+                Pour tester l'overlay, ou injecter un don reçu par un autre biais.
               </p>
 
               <form onSubmit={handleSendTestDonation} className="space-y-2.5 pt-1">
@@ -714,7 +781,7 @@ export const AdminPage: React.FC = () => {
                 />
                 <input
                   type="number"
-                  placeholder="Montant €"
+                  placeholder={`Montant (${state.config.currency})`}
                   value={testAmount}
                   onChange={(e) => setTestAmount(Number(e.target.value))}
                   className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-gold-500"
@@ -731,7 +798,8 @@ export const AdminPage: React.FC = () => {
                 />
                 {!isTombolaRunning && (
                   <p className="text-[11px] text-amber-500/90">
-                    Lancez la tombola pour pouvoir envoyer un don test (même règle que Streamlabs).
+                    Lancez la tombola pour pouvoir envoyer un don (même règle que Streamlabs
+                    Charity).
                   </p>
                 )}
                 <button
@@ -739,7 +807,7 @@ export const AdminPage: React.FC = () => {
                   disabled={isActionLoading || !isTombolaRunning}
                   className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-gold-500/20 text-gold-300 border border-gold-500/30 hover:bg-gold-500/30 text-xs font-bold transition disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  <Send className="w-3.5 h-3.5" /> Envoyer Don Test
+                  <Send className="w-3.5 h-3.5" /> Envoyer le don
                 </button>
               </form>
             </div>
@@ -773,7 +841,9 @@ export const AdminPage: React.FC = () => {
                         )}
                       </div>
                       <div className="text-right">
-                        <span className="font-extrabold text-gold-400">{don.amount} €</span>
+                        <span className="font-extrabold text-gold-400">
+                          {formatAmount(don.amount, don.currency, 2)}
+                        </span>
                         <span className="text-[10px] text-stone-500 block">
                           {don.ticketsCount} tickets
                         </span>

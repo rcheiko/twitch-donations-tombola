@@ -1,7 +1,7 @@
 # Twitch Streamlabs Tombola — Project Context & Developer Guide
 
 Real-time monorepo application for a charity raffle live event (ZEvent-style).
-The application collects Streamlabs donations through the real-time Streamlabs Socket API (plus manual admin donations), grants raffle tickets (e.g., 1€ = 1 ticket or custom amount), manages an endsAt-based countdown timer, calculates live statistics (donation count, prize pool, top donor), broadcasts updates in real-time over WebSockets, and provides:
+The application collects **Streamlabs Charity** donations through the real-time Streamlabs Socket API (plus manual admin donations), grants raffle tickets (e.g., 1€ = 1 ticket or custom amount), manages an endsAt-based countdown timer, calculates live statistics (donation count, prize pool, top donor), broadcasts updates in real-time over WebSockets, and provides:
 1. A polished **OBS Browser Overlay** (`/overlay`) (dark & gold gala theme, stats, countdown capsule, prize display).
 2. A **Streamer Admin Dashboard** (`/admin`) to control the raffle, timer, drawings, and simulations.
 
@@ -39,11 +39,14 @@ npm test
 
 1. **Security & Strict Validation:**
    - Zod schemas with `.strict()` validation on every incoming payload (WebSockets, admin endpoints, config).
-   - Documented exception: the schema validating inbound **Streamlabs Socket API** items is non-strict, because Streamlabs sends additional fields on its events. Every other schema stays `.strict()`.
-   - Donations come from exactly two sources: the Streamlabs Socket API (`STREAMLABS_SOCKET_TOKEN`) and the manual donation endpoint of the Admin panel. Both only credit tickets while the countdown is `running`. There is **no** HTTP webhook route.
+   - Documented exception: the schema validating inbound **Streamlabs Charity Socket API** items is non-strict, because Streamlabs sends additional fields on its events. Every other schema stays `.strict()`.
+   - Donations come from exactly two sources: the Streamlabs Socket API filtered to `type === "streamlabscharitydonation"` (same `STREAMLABS_SOCKET_TOKEN` as classic tips, no separate Charity credential) and the manual donation endpoint of the Admin panel. Both only credit tickets while the countdown is `running`. Classic tips (`type === "donation"`) are ignored. There is **no** HTTP webhook route.
+   - Charity payload: donor is `from`, dedup id is `charityDonationId` (fallback `_id`; `id` is only an alert counter), `amount` is a string. Dedup keeps the pre-existing `Donation.streamlabsDonationId` field name so existing `backup.json` and archives stay loadable.
    - Admin API protected strictly via `x-admin-key` header (`ADMIN_SECRET_KEY`), compared with `crypto.timingSafeEqual`.
    - In production, boot fails if `ADMIN_SECRET_KEY` or `STREAMLABS_SOCKET_TOKEN` is missing or left at its default placeholder value.
-   - Input bounds: amount ≤ 1 000 000, donor name ≤ 64 chars, message ≤ 500 chars, `add_time` seconds within ±86400, timer duration between 10 and 86400 seconds.
+   - Currency: the tombola runs in a single `config.currency` (`EUR` by default). A Charity donation in another currency is ignored and logged as a warning; the manual endpoint refuses a mismatched currency with `400`. No exchange rate anywhere in the code.
+   - Language: server logs, boot/config errors and thrown `Error`s are in **English**; HTTP `error` payloads and Zod validation messages stay in **French**, because the admin panel displays them verbatim.
+   - Input bounds: amount ≤ 1 000 000, donor name ≤ 64 chars, message ≤ 500 chars, `add_time` seconds within ±86400, timer duration between 10 and 86400 seconds. On the Charity socket an over-long donor name or message is **truncated** to those bounds instead of dropping a real donation.
 
 2. **Data Resilience (Crash-Proof):**
    - Every received donation is immediately persisted into `backup.json` (inside `/app/data`).

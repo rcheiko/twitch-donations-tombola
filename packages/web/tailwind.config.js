@@ -4,6 +4,18 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Overlay accent palette, resolved from the CSS variables declared in index.css
+        // so the theme picked in the admin panel repaints the overlay at runtime.
+        accent: {
+          bright: "rgb(var(--accent-bright) / <alpha-value>)",
+          soft: "rgb(var(--accent-soft) / <alpha-value>)",
+          base: "rgb(var(--accent-base) / <alpha-value>)",
+          deep: "rgb(var(--accent-deep) / <alpha-value>)",
+          edge: "rgb(var(--accent-edge) / <alpha-value>)",
+          muted: "rgb(var(--accent-muted) / <alpha-value>)",
+          ink: "rgb(var(--accent-ink) / <alpha-value>)",
+        },
+        // Fixed gold chrome of the admin control room (not themed: it never goes on stream).
         gold: {
           50: "#fffdf5",
           100: "#fdf8e6",

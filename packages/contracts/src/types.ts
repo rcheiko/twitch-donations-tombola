@@ -5,7 +5,7 @@ import type {
   AdminTimerActionSchema,
   DonationSchema,
   ManualDonationSchema,
-  StreamlabsItemSchema,
+  StreamlabsCharityItemSchema,
   TombolaArchiveSummarySchema,
   TombolaBackupDataSchema,
   TombolaConfigSchema,
@@ -20,13 +20,14 @@ import type {
 export type Donation = z.infer<typeof DonationSchema>
 export type TopDonation = z.infer<typeof TopDonationSchema>
 export type TombolaConfig = z.infer<typeof TombolaConfigSchema>
+export type OverlayTheme = TombolaConfig["overlayTheme"]
 export type TombolaTimer = z.infer<typeof TombolaTimerSchema>
 export type TombolaWinner = z.infer<typeof TombolaWinnerSchema>
 export type TombolaDraw = z.infer<typeof TombolaDrawSchema>
 export type TombolaStats = z.infer<typeof TombolaStatsSchema>
 export type TombolaBackupData = z.infer<typeof TombolaBackupDataSchema>
 export type TombolaState = z.infer<typeof TombolaStateSchema>
-export type StreamlabsItem = z.infer<typeof StreamlabsItemSchema>
+export type StreamlabsCharityItem = z.infer<typeof StreamlabsCharityItemSchema>
 export type AdminTimerAction = z.infer<typeof AdminTimerActionSchema>
 export type AdminConfigUpdate = z.infer<typeof AdminConfigUpdateSchema>
 export type ManualDonation = z.infer<typeof ManualDonationSchema>

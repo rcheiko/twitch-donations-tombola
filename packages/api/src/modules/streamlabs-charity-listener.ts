@@ -1,9 +1,12 @@
 import type { FastifyBaseLogger } from "fastify"
 import { io, type Socket } from "socket.io-client"
-import { ingestStreamlabsItem } from "./donation-ingest.js"
+import { ingestCharityDonationItem } from "./donation-ingest.js"
 import type { TombolaEngine } from "./tombola-engine.js"
 
-export class StreamlabsListener {
+/** Charity rides the same socket and token as classic tips; only the event type differs. */
+const CHARITY_EVENT_TYPE = "streamlabscharitydonation"
+
+export class StreamlabsCharityListener {
   private socket: Socket | null = null
   private isConnected = false
 
@@ -16,7 +19,7 @@ export class StreamlabsListener {
   start() {
     if (!this.token) {
       this.logger.info(
-        "ℹ️ STREAMLABS_SOCKET_TOKEN not provided, Streamlabs Socket listener inactive.",
+        "ℹ️ STREAMLABS_SOCKET_TOKEN not provided, Streamlabs Charity listener inactive.",
       )
       return
     }
@@ -32,7 +35,7 @@ export class StreamlabsListener {
     this.socket.on("connect", () => {
       this.isConnected = true
       this.logger.info(
-        "✅ Connected to Streamlabs Socket API! Live donations and test alerts are active.",
+        "✅ Connected to Streamlabs Socket API! Streamlabs Charity donations are active.",
       )
     })
 
@@ -50,14 +53,16 @@ export class StreamlabsListener {
 
       const payload = eventData as { type?: string; message?: unknown }
 
-      // Intercept donation events (both live tips and Alert Box 'Test Donation' clicks)
-      if (payload.type !== "donation" || !Array.isArray(payload.message)) return
+      // Charity only: classic `donation` tips are deliberately ignored.
+      if (payload.type !== CHARITY_EVENT_TYPE || payload.message == null) return
 
-      for (const item of payload.message) {
+      const items = Array.isArray(payload.message) ? payload.message : [payload.message]
+
+      for (const item of items) {
         try {
-          await ingestStreamlabsItem(this.engine, item, this.logger)
+          await ingestCharityDonationItem(this.engine, item, this.logger)
         } catch (err) {
-          this.logger.error(err, "Failed to process Streamlabs donation from Socket API")
+          this.logger.error(err, "Failed to process Streamlabs Charity donation from Socket API")
         }
       }
     })
@@ -68,7 +73,7 @@ export class StreamlabsListener {
       this.socket.disconnect()
       this.socket = null
       this.isConnected = false
-      this.logger.info("Streamlabs Socket listener stopped.")
+      this.logger.info("Streamlabs Charity listener stopped.")
     }
   }
 

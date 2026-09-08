@@ -7,7 +7,7 @@ This document details deploying the React web frontend (OBS Overlay & Streamer A
 ## Decoupled Architecture
 
 ```
-[ Streamlabs Alert / Tip ] ──> [ Streamlabs Socket API ] ──> [ Fastify API (CapRover VPS) ]
+[ Streamlabs Charity Donation ] ──> [ Streamlabs Socket API ] ──> [ Fastify API (CapRover VPS) ]
                                                                         │
                                                                         ▼ (WebSockets /ws)
 [ OBS Studio Browser ]  ──> [ Cloudflare Pages CDN ] ◄──────────────────┘
@@ -15,7 +15,7 @@ This document details deploying the React web frontend (OBS Overlay & Streamer A
 ```
 
 - **Frontend (Cloudflare Pages):** Globally distributed over Cloudflare's Anycast CDN, instant load times, zero hosting cost.
-- **Backend (CapRover VPS):** Captures Streamlabs donations in real-time, calculates raffle tickets, handles atomic disk persistence (`backup.json`), and broadcasts state via WebSockets.
+- **Backend (CapRover VPS):** Captures Streamlabs Charity donations in real-time, calculates raffle tickets, handles atomic disk persistence (`backup.json`), and broadcasts state via WebSockets.
 
 ---
 

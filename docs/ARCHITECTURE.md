@@ -1,18 +1,21 @@
 # Technical Architecture — Twitch Tombola
 
-This document details data flows, the lifecycle of a Streamlabs donation, and the real-time persistence model.
+This document details data flows, the lifecycle of a Streamlabs Charity donation, and the real-time persistence model.
 
 ---
 
 ## Data Flow Overview
 
-There are exactly **two** donation channels: the Streamlabs Real-Time Socket API, and the manual donation endpoint of the Admin panel. No HTTP webhook route exists.
+There are exactly **two** donation channels: the Streamlabs Real-Time Socket API (filtered to **Streamlabs Charity** events only), and the manual donation endpoint of the Admin panel. No HTTP webhook route exists.
 
 ```
-[ Streamlabs Tip Page / Alert Box ]        [ Admin Panel ]
+[ Streamlabs Charity Campaign ]            [ Admin Panel ]
                  │                                │
                  ▼                                ▼
-[ Streamlabs Real-Time Socket API ]   [ POST /api/admin/manual-donation ]
+[ Streamlabs Socket API                                              ]
+[   event `streamlabscharitydonation` only, `donation` ignored       ]
+                 │                                │
+                 │                    [ POST /api/admin/manual-donation ]
                  │                                │
                  └──────────────┬─────────────────┘
                                 ▼
@@ -36,11 +39,13 @@ There are exactly **two** donation channels: the Streamlabs Real-Time Socket API
 
 ### Ingestion rules
 
-- **Socket validation:** every incoming Streamlabs item is validated with `StreamlabsItemSchema.safeParse`. This schema is the single documented exception to the project-wide `.strict()` rule, because Streamlabs adds extra fields to its events. An invalid item is ignored (logged, never thrown).
+- **Event filter:** the listener reacts only to `type === "streamlabscharitydonation"`. Classic Streamlabs tips (`type === "donation"`) are dropped before validation.
+- **Socket validation:** every incoming Charity item is validated with `StreamlabsCharityItemSchema.safeParse`. This schema is the single documented exception to the project-wide `.strict()` rule, because Streamlabs adds extra fields to its events. An invalid item is ignored (logged, never thrown).
 - **Timer guard:** socket donations are only credited while `timer.status === "running"`.
-- **Deduplication:** if a donation with the same `streamlabsDonationId` is already stored, the engine returns the existing donation, credits nothing and does not re-persist. Streamlabs replays are therefore harmless.
-- **Anonymous fallback:** a donor name that is empty after trimming becomes `"Anonyme"`.
-- **Bounds:** amount ≤ `1 000 000`, donor name ≤ `64` characters, message ≤ `500` characters.
+- **Deduplication:** the Charity stable id is `charityDonationId` (its `id` field is only a per-alert counter), stored as `streamlabsDonationId`, falling back to `_id`. If a donation with the same id is already stored, the engine returns the existing donation, credits nothing and does not re-persist. Streamlabs replays are therefore harmless.
+- **Anonymous fallback:** the Charity donor field is `from`; a name that is empty after trimming becomes `"Anonyme"`.
+- **Bounds:** amount ≤ `1 000 000`, donor name ≤ `64` characters, message ≤ `500` characters. An amount outside the range is rejected, but an over-long name or message is **truncated** rather than dropping a real charity donation.
+- **Currency guard:** the event currency must equal `config.currency` (`EUR` by default). Anything else is ignored — no ticket, no amount — and logged as a warning. No exchange rate lives in the code. This also keeps `stats.totalAmount` and `stats.topDonation` single-currency, hence comparable.
 
 ### Ticket calculation (integer cents)
 
@@ -82,7 +87,7 @@ The backup file stored at `/app/data/backup.json` has the following structure:
   "donations": [
     {
       "id": "don_abc123",
-      "streamlabsDonationId": "sl_987654",
+      "streamlabsDonationId": "455768204817176347",
       "donorName": "Shokker",
       "amount": 1000,
       "currency": "EUR",
@@ -153,13 +158,13 @@ Archives are read back through two admin routes (header `x-admin-key`):
 
 ## Health & Observability
 
-`GET /api/health` reports the process status **and** the live Streamlabs socket state:
+`GET /api/health` reports the process status **and** the live Streamlabs Charity socket state:
 
 ```json
 { "status": "ok", "streamlabsConnected": true }
 ```
 
-`streamlabsConnected` reflects the actual listener connection, which is the quickest way to confirm before a live show that donations will be ingested.
+`streamlabsConnected` reflects the actual listener connection, which is the quickest way to confirm before a live show that donations will be ingested. It only proves the socket is up: if the Streamlabs account is not linked to the Charity campaign, it stays `true` while no charity event is ever delivered.
 
 ---
 
