@@ -1,0 +1,33 @@
+{
+  "name": "@tombola/api",
+  "version": "0.1.0",
+  "description": "Fastify API and WebSocket server with atomic JSON persistence for Twitch raffle",
+  "license": "MIT",
+  "author": "Romain Cheiko",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsc -b && node --watch dist/index.js",
+    "start": "node dist/index.js",
+    "test": "tsc -b && NODE_ENV=test node --test dist/*.test.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.1.0",
+    "@fastify/static": "^10.0.0",
+    "@fastify/websocket": "^11.0.2",
+    "@tombola/contracts": "*",
+    "dotenv": "^16.4.7",
+    "fastify": "^5.2.1",
+    "socket.io-client": "^4.8.3",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@tombola/config": "*",
+    "@types/node": "^22.13.10",
+    "@types/ws": "^8.5.14",
+    "typescript": "^5.8.2"
+  }
+}

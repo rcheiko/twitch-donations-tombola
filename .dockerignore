@@ -1,0 +1,13 @@
+node_modules
+.turbo
+dist
+build
+.git
+.DS_Store
+data/*.json
+!data/.gitkeep
+.env
+.env.local
+docs
+CLAUDE.md
+README.md

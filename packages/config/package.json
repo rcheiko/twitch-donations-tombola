@@ -1,0 +1,12 @@
+{
+  "name": "@tombola/config",
+  "version": "0.1.0",
+  "description": "Shared configurations for Biome and TypeScript",
+  "license": "MIT",
+  "author": "Romain Cheiko",
+  "private": true,
+  "files": [
+    "biome.json",
+    "tsconfig.base.json"
+  ]
+}

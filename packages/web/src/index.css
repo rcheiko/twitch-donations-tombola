@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .gold-text-gradient {
+    background: linear-gradient(135deg, #f7e2a9 0%, #e5b138 50%, #b88320 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .gold-button-gradient {
+    background: linear-gradient(180deg, #f3d489 0%, #e2b34a 50%, #ba8929 100%);
+  }
+
+  .gold-border-gradient {
+    border-image: linear-gradient(to right, #614611, #d4a748, #614611) 1;
+  }
+}
