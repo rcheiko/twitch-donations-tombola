@@ -152,6 +152,11 @@ export class StorageService {
       const data = await this.readArchive(fileName)
       if (!data) continue
 
+      const winner = data.draw.winner
+      const winningDonation = winner
+        ? data.donations.find((donation) => donation.id === winner.donationId)
+        : undefined
+
       summaries.push({
         fileName,
         eventTitle: data.config.eventTitle,
@@ -160,7 +165,8 @@ export class StorageService {
         donationCount: data.stats.donationCount,
         totalAmount: data.stats.totalAmount,
         totalTickets: data.stats.totalTickets,
-        winnerName: data.draw.winner?.donorName ?? null,
+        winnerName: winner?.donorName ?? null,
+        winnerStreamlabsDonationId: winningDonation?.streamlabsDonationId ?? null,
         drawnAt: data.draw.drawnAt,
       })
     }

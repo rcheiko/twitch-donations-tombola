@@ -935,6 +935,24 @@ export const AdminPage: React.FC = () => {
                           <Eye className="w-3 h-3" /> Voir le JSON
                         </button>
                       </div>
+
+                      {/* Full width and wrapping: the id must stay readable without opening the JSON. */}
+                      {archive.winnerName && (
+                        <div className="rounded-lg bg-neutral-900/70 px-2 py-1">
+                          <span className="block text-[9px] uppercase tracking-wider text-stone-500 font-semibold">
+                            Id Streamlabs du don gagnant
+                          </span>
+                          {archive.winnerStreamlabsDonationId ? (
+                            <span className="block font-mono text-[10px] text-stone-300 break-all select-all">
+                              {archive.winnerStreamlabsDonationId}
+                            </span>
+                          ) : (
+                            <span className="block text-[10px] italic text-stone-500">
+                              Don manuel — aucun id Streamlabs
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))
                 )}

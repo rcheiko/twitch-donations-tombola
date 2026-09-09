@@ -411,6 +411,33 @@ test("resetAll archives the previous tombola", async (t) => {
   assert.equal(archives[0]?.donationCount, 1)
 })
 
+test("an archive summary carries the winner's Streamlabs id", async (t) => {
+  const { dir, engine } = await makeEngine(t)
+
+  await engine.addDonation({ donorName: "Alice", amount: 20, streamlabsDonationId: "charity_777" })
+  assert.ok(await engine.drawWinner())
+  const charityFile = await engine.resetAll()
+
+  // A manual donation has no Streamlabs id to expose.
+  await engine.addDonation({ donorName: "Bob", amount: 5 })
+  assert.ok(await engine.drawWinner())
+  const manualFile = await engine.resetAll()
+
+  // Without a draw there is no winner at all.
+  await engine.addDonation({ donorName: "Carol", amount: 5 })
+  const noDrawFile = await engine.resetAll()
+
+  const archives = await new StorageService(dir).listArchives()
+  const summaryOf = (fileName: string | null) => archives.find((a) => a.fileName === fileName)
+
+  assert.equal(summaryOf(charityFile)?.winnerName, "Alice")
+  assert.equal(summaryOf(charityFile)?.winnerStreamlabsDonationId, "charity_777")
+  assert.equal(summaryOf(manualFile)?.winnerName, "Bob")
+  assert.equal(summaryOf(manualFile)?.winnerStreamlabsDonationId, null)
+  assert.equal(summaryOf(noDrawFile)?.winnerName, null)
+  assert.equal(summaryOf(noDrawFile)?.winnerStreamlabsDonationId, null)
+})
+
 // ---------------------------------------------------------------------------
 // Streamlabs Charity ingestion
 // ---------------------------------------------------------------------------

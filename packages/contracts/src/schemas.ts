@@ -142,6 +142,8 @@ export const TombolaArchiveSummarySchema = z
     totalAmount: z.number().nonnegative(),
     totalTickets: z.number().int().nonnegative(),
     winnerName: z.string().nullable(),
+    /** Charity id of the winning donation, null for a manual donation or an untracked one. */
+    winnerStreamlabsDonationId: z.string().nullable(),
     drawnAt: z.string().datetime().nullable(),
   })
   .strict()
