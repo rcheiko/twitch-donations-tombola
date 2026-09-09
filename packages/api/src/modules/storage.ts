@@ -154,7 +154,7 @@ export class StorageService {
 
       const winner = data.draw.winner
       const winningDonation = winner
-        ? data.donations.find((donation) => donation.id === winner.donationId)
+        ? data.donations.find((donation) => donation.localDonationId === winner.localDonationId)
         : undefined
 
       summaries.push({

@@ -86,8 +86,9 @@ The backup file stored at `/app/data/backup.json` has the following structure:
   },
   "donations": [
     {
-      "id": "don_abc123",
+      "localDonationId": "don_abc123",
       "streamlabsDonationId": "455768204817176347",
+      "streamlabsCreatedAt": "2026-09-07 11:44:58",
       "donorName": "Shokker",
       "amount": 1000,
       "currency": "EUR",
@@ -104,7 +105,7 @@ The backup file stored at `/app/data/backup.json` has the following structure:
   "draw": {
     "hasDrawn": true,
     "winner": {
-      "donationId": "don_abc123",
+      "localDonationId": "don_abc123",
       "donorName": "Shokker",
       "ticketsCount": 1000,
       "totalDonated": 1000

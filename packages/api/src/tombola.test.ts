@@ -102,7 +102,7 @@ async function startTombola(server: FastifyInstance): Promise<void> {
 
 test("strict schemas reject unknown fields", () => {
   const base = {
-    id: "don_1",
+    localDonationId: "don_1",
     donorName: "Alice",
     amount: 50,
     currency: "EUR",
@@ -282,7 +282,7 @@ test("streamlabsDonationId is deduplicated", async (t) => {
     streamlabsDonationId: "sl-42",
   })
 
-  assert.equal(replay.id, first.id)
+  assert.equal(replay.localDonationId, first.localDonationId)
   const state = engine.getState()
   assert.equal(state.stats.donationCount, 1)
   assert.equal(state.stats.totalAmount, 10)
@@ -320,8 +320,8 @@ test("draw points to the donation holding the winning ticket and is weighted", a
 
   const winner = await engine.drawWinner()
   assert.ok(winner)
-  const donationIds = engine.getState().recentDonations.map((d) => d.id)
-  assert.ok(donationIds.includes(winner.donationId), "winner.donationId must exist")
+  const donationIds = engine.getState().recentDonations.map((d) => d.localDonationId)
+  assert.ok(donationIds.includes(winner.localDonationId), "winner.localDonationId must exist")
   assert.equal(engine.getState().draw.hasDrawn, true)
 
   let bigWins = 0
@@ -506,6 +506,89 @@ test("ingestCharityDonationItem only credits while the tombola runs", async (t) 
   assert.equal(anonymous?.donorName, "Anonyme")
 })
 
+test("a backup written before the ids were renamed still loads", () => {
+  // `id` and `winner.donationId` are what pre-rename backups and archives on disk use.
+  const legacy = {
+    version: 1,
+    lastUpdated: new Date().toISOString(),
+    config: DEFAULT_TOMBOLA_CONFIG,
+    stats: { totalAmount: 50, donationCount: 1, totalTickets: 50, topDonation: null },
+    timer: { status: "finished", remainingSeconds: 0, endsAt: null },
+    draw: {
+      hasDrawn: true,
+      winner: {
+        donorName: "Alice",
+        donationId: "don_legacy",
+        ticketsCount: 50,
+        totalDonated: 50,
+        winningTicketNumber: 7,
+      },
+      drawnAt: new Date().toISOString(),
+    },
+    donations: [
+      {
+        id: "don_legacy",
+        donorName: "Alice",
+        amount: 50,
+        currency: "EUR",
+        ticketsCount: 50,
+        message: "",
+        createdAt: new Date().toISOString(),
+      },
+    ],
+  }
+
+  const reloaded = TombolaBackupDataSchema.safeParse(legacy)
+  assert.equal(reloaded.success, true)
+  assert.equal(reloaded.data?.donations[0]?.localDonationId, "don_legacy")
+  assert.equal(reloaded.data?.draw.winner?.localDonationId, "don_legacy")
+
+  // The legacy key is consumed, never carried alongside the new one
+  assert.equal("id" in (reloaded.data?.donations[0] ?? {}), false)
+  assert.equal("donationId" in (reloaded.data?.draw.winner ?? {}), false)
+})
+
+test("a charity donation keeps the Streamlabs date next to the reception date", async (t) => {
+  const { engine } = await makeEngine(t)
+  await engine.startTimer()
+
+  const donation = await ingestCharityDonationItem(engine, charityItem())
+
+  // Stored exactly as Streamlabs sent it: no timezone is documented, so none is invented
+  assert.equal(donation?.streamlabsCreatedAt, "2024-09-06 20:29:57")
+  // Our own createdAt still records when this server saw the donation
+  assert.notEqual(donation?.createdAt, donation?.streamlabsCreatedAt)
+  assert.ok(Date.now() - Date.parse(donation?.createdAt ?? "") < 60_000)
+
+  // A Charity event without any date, and a manual donation, simply carry none
+  const undated = await ingestCharityDonationItem(
+    engine,
+    charityItem({ charityDonationId: "no-date", createdAt: null }),
+  )
+  assert.equal(undated?.streamlabsCreatedAt, undefined)
+
+  const manual = await engine.addDonation({ donorName: "Bob", amount: 5 })
+  assert.equal(manual.streamlabsCreatedAt, undefined)
+
+  // An implausibly long value is dropped, never stored as a truncated fragment
+  const chatty = await ingestCharityDonationItem(
+    engine,
+    charityItem({ charityDonationId: "long-date", createdAt: "d".repeat(200) }),
+  )
+  assert.equal(chatty?.streamlabsCreatedAt, undefined)
+})
+
+test("both donation dates survive a backup round-trip", async (t) => {
+  const { dir, engine } = await makeEngine(t)
+  await engine.startTimer()
+  await ingestCharityDonationItem(engine, charityItem())
+
+  const reloaded = await new StorageService(dir).load()
+  const [donation] = reloaded?.donations ?? []
+  assert.equal(donation?.streamlabsCreatedAt, "2024-09-06 20:29:57")
+  assert.ok(donation?.createdAt)
+})
+
 test("an over-long charity name or message is truncated, never dropped", async (t) => {
   const { engine } = await makeEngine(t)
   await engine.startTimer()
@@ -686,7 +769,7 @@ test("draw refuses a second winner unless forced", async (t) => {
     headers: ADMIN_HEADERS,
   })
   assert.equal(first.statusCode, 200)
-  assert.ok(first.json().winner.donationId)
+  assert.ok(first.json().winner.localDonationId)
 
   const second = await server.inject({
     method: "POST",
