@@ -829,7 +829,7 @@ export const AdminPage: React.FC = () => {
                 ) : (
                   state.recentDonations.map((don) => (
                     <div
-                      key={don.id}
+                      key={don.localDonationId}
                       className="bg-neutral-950/80 border border-neutral-800/80 rounded-xl p-2.5 flex items-center justify-between text-xs"
                     >
                       <div>

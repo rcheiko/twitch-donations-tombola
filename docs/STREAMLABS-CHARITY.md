@@ -74,6 +74,7 @@ A Streamlabs Charity event carries a list of items shaped like this (real event,
 | Donor name | `name` | **`from`** |
 | Stable id | `id` | **`charityDonationId`** |
 | Amount type | string or number | **string** (`"25.00"`) |
+| Donation date | `created_at` (epoch) | **`createdAt`** (`"2024-09-06 20:29:57"`) |
 
 > ⚠️ The Charity `id` field (`24182` above) is only a **per-alert counter**, not a donation identifier — it can repeat across donations. Deduplication therefore keys on `charityDonationId`, falling back to `_id` when absent.
 
@@ -84,6 +85,7 @@ Every item is validated individually with Zod (`safeParse`) before ingestion:
 - `message` — trimmed and **truncated** to 500 characters; `null` or missing becomes an empty string.
 - `currency` — compared with the tombola's own currency (`config.currency`, `EUR` by default, editable in `/admin`). A donation in **any other currency is ignored**: nothing is credited, and a `warn` line names the donor, the amount and both currencies so it can be re-entered converted from `/admin` if needed. Crediting it at face value would be a fairness hole — 5000 HUF is worth about 12 €, so it would buy 5000 tickets.
 - `charityDonationId` — stored as `streamlabsDonationId`; a donation whose id is already stored is **ignored** (deduplication against Streamlabs replays).
+- `createdAt` — the Streamlabs-side donation date, stored **verbatim** as `streamlabsCreatedAt`. It is never converted: Streamlabs marks no timezone on it and documents none. Missing, or longer than 64 characters and therefore not a date, leaves the field absent — a truncated date would read like a real one. Not to be confused with the donation's own `createdAt`, which is when **this server** received the event.
 
 > 📌 **Documented `.strict()` exception:** this is the only schema in the project that is *not* strict. Streamlabs Charity sends additional, undocumented fields on its events (`priority`, `custom`, `userId`, `to`, …), so unknown keys are tolerated here (and only here). Free-text lengths are deliberately **not** bounded in the schema either: an over-long donor name or message is truncated at ingestion rather than dropping a real charity donation mid-event. An item that still fails validation is logged and skipped — it never crashes the listener.
 

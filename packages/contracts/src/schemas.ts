@@ -1,18 +1,43 @@
 import { z } from "zod"
 import { DEFAULT_TOMBOLA_CONFIG, OVERLAY_THEMES } from "./constants.js"
 
-export const DonationSchema = z
-  .object({
-    id: z.string(),
-    streamlabsDonationId: z.string().optional(),
-    donorName: z.string().trim().min(1).max(64),
-    amount: z.number().positive().max(1_000_000),
-    currency: z.string().default("EUR"),
-    ticketsCount: z.number().int().nonnegative(),
-    message: z.string().max(500).default(""),
-    createdAt: z.string().datetime(),
-  })
-  .strict()
+/** Keeps files written before the id rename readable: `id` and `donationId` are remapped. */
+function acceptLegacyKey<T extends z.ZodTypeAny>(legacyKey: string, currentKey: string, schema: T) {
+  return z.preprocess((value) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return value
+
+    const record = value as Record<string, unknown>
+    if (record[currentKey] !== undefined || typeof record[legacyKey] !== "string") return value
+
+    const { [legacyKey]: legacyValue, ...rest } = record
+    return { ...rest, [currentKey]: legacyValue }
+  }, schema)
+}
+
+export const DonationSchema = acceptLegacyKey(
+  "id",
+  "localDonationId",
+  z
+    .object({
+      /** Generated here, `don_<millis>_<random>`. */
+      localDonationId: z.string(),
+      /** Streamlabs' `charityDonationId` (or `_id`). Absent on a manual donation. */
+      streamlabsDonationId: z.string().optional(),
+      /**
+       * Streamlabs' own donation date, verbatim as sent (`"2024-09-06 20:29:57"`), never
+       * converted: it carries no timezone marker and Streamlabs documents none.
+       * Not to be confused with `createdAt`, the reception time on this server.
+       */
+      streamlabsCreatedAt: z.string().max(64).optional(),
+      donorName: z.string().trim().min(1).max(64),
+      amount: z.number().positive().max(1_000_000),
+      currency: z.string().default("EUR"),
+      ticketsCount: z.number().int().nonnegative(),
+      message: z.string().max(500).default(""),
+      createdAt: z.string().datetime(),
+    })
+    .strict(),
+)
 
 export const TopDonationSchema = z
   .object({
@@ -81,15 +106,20 @@ export const TombolaTimerSchema = z
   })
   .strict()
 
-export const TombolaWinnerSchema = z
-  .object({
-    donorName: z.string(),
-    donationId: z.string(),
-    ticketsCount: z.number().int().positive(),
-    totalDonated: z.number().positive(),
-    winningTicketNumber: z.number().int().positive(),
-  })
-  .strict()
+export const TombolaWinnerSchema = acceptLegacyKey(
+  "donationId",
+  "localDonationId",
+  z
+    .object({
+      donorName: z.string(),
+      /** Matches the winning entry in `donations`. */
+      localDonationId: z.string(),
+      ticketsCount: z.number().int().positive(),
+      totalDonated: z.number().positive(),
+      winningTicketNumber: z.number().int().positive(),
+    })
+    .strict(),
+)
 
 export const TombolaDrawSchema = z
   .object({
@@ -173,6 +203,8 @@ export const StreamlabsCharityItemSchema = z.object({
     .string()
     .nullish()
     .transform((value) => value ?? ""),
+  /** Streamlabs-side donation time, `"YYYY-MM-DD HH:mm:ss"` in practice, timezone undocumented. */
+  createdAt: z.union([z.string(), z.number()]).nullish(),
   isTest: z.boolean().optional(),
 })
 

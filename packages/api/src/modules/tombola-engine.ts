@@ -112,6 +112,8 @@ export class TombolaEngine {
     currency?: string
     message?: string
     streamlabsDonationId?: string
+    /** Streamlabs-side donation date, verbatim as sent. Absent for a manual donation. */
+    streamlabsCreatedAt?: string
   }): Promise<Donation> {
     // Idempotency: Streamlabs may replay the same tip on socket reconnection.
     if (input.streamlabsDonationId) {
@@ -124,13 +126,15 @@ export class TombolaEngine {
     const tickets = ticketsFor(input.amount, this.config.ticketPrice)
 
     const donation: Donation = DonationSchema.parse({
-      id: `don_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`,
+      localDonationId: `don_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`,
       streamlabsDonationId: input.streamlabsDonationId,
+      streamlabsCreatedAt: input.streamlabsCreatedAt,
       donorName: input.donorName.trim() || "Anonyme",
       amount: input.amount,
       currency: input.currency || this.config.currency,
       ticketsCount: tickets,
       message: input.message ? input.message.trim() : "",
+      // Reception time on this server; `streamlabsCreatedAt` holds the Streamlabs-side time.
       createdAt: new Date().toISOString(),
     })
 
@@ -314,7 +318,7 @@ export class TombolaEngine {
 
     const selectedWinner: TombolaWinner = {
       donorName: winningDonation.donorName,
-      donationId: winningDonation.id,
+      localDonationId: winningDonation.localDonationId,
       ticketsCount,
       totalDonated: Math.round(totalDonated * 100) / 100,
       winningTicketNumber: winningTicket,

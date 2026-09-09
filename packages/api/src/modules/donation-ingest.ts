@@ -12,6 +12,8 @@ export interface IngestLogger {
 const MAX_DONATION_AMOUNT = 1_000_000
 const MAX_DONOR_NAME_LENGTH = 64
 const MAX_MESSAGE_LENGTH = 500
+/** Generous headroom: a real date is 19 characters, 25 with a timezone offset. */
+const MAX_STREAMLABS_DATE_LENGTH = 64
 
 /** Trims then caps a free-text field, so an over-long value is shortened, never rejected. */
 function truncate(value: string | null | undefined, maxLength: number): string {
@@ -83,11 +85,20 @@ export async function ingestCharityDonationItem(
   const charityDonationId =
     item.charityDonationId !== undefined ? String(item.charityDonationId) : item._id
 
+  // Streamlabs' own donation date, kept verbatim next to our reception time so the tombola
+  // can be reconciled against the charity's export, which has no id column to join on.
+  // Unlike a name or a message, a truncated date is meaningless, so an implausibly long
+  // value is dropped instead: better no date than a fragment that reads like one.
+  const sentDate = item.createdAt == null ? "" : String(item.createdAt).trim()
+  const streamlabsCreatedAt =
+    sentDate && sentDate.length <= MAX_STREAMLABS_DATE_LENGTH ? sentDate : undefined
+
   return engine.addDonation({
     donorName,
     amount,
     currency,
     message: truncate(item.message, MAX_MESSAGE_LENGTH),
     streamlabsDonationId: charityDonationId,
+    streamlabsCreatedAt,
   })
 }
